@@ -9,10 +9,10 @@ export const appConfig: ApplicationConfig = {
   providers: [
     provideZoneChangeDetection({ eventCoalescing: true }),
     provideRouter(routes),
-    // Bemærk: app's appConfig er den effektive config FOR ALLE Angular-services der
-    // kører i denne browser-instans (inkl. host loaded via federation). Derfor
-    // skal BÅDE nexusAuth + correlationId interceptors registreres her,
-    // ikke kun i host/manager — selvom de også har egne kopier til standalone-brug.
+    // Note: app's appConfig is the effective config FOR ALL Angular services that
+    // run in this browser instance (incl. host loaded via federation). Therefore
+    // BOTH nexusAuth + correlationId interceptors must be registered here,
+    // not only in host/manager — even though they also have their own copies for standalone use.
     provideHttpClient(withInterceptors([nexusAuthInterceptor, correlationIdInterceptor])),
   ],
 };

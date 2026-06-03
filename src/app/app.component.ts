@@ -13,15 +13,15 @@ import { HostLoaderService } from './services/host-loader.service';
     } @else if (loader.status() === 'loading') {
       <div class="splash">
         <div class="spinner"></div>
-        <h1>Indlæser host shell…</h1>
-        <p>Forsøg {{ loader.attempt() }} af 3</p>
+        <h1>Loading host shell...</h1>
+        <p>Attempt {{ loader.attempt() }} of 3</p>
       </div>
     } @else if (loader.status() === 'failed') {
       <div class="splash error">
-        <h1>Host shell utilgængelig</h1>
-        <p>Kunne ikke indlæse host efter 3 forsøg.</p>
+        <h1>Host shell unavailable</h1>
+        <p>Failed to load host after 3 attempts.</p>
         <pre>{{ loader.lastError() }}</pre>
-        <button type="button" (click)="retry()">Prøv igen</button>
+        <button type="button" (click)="retry()">Try again</button>
       </div>
     }
   `,

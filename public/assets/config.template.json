@@ -1,5 +1,5 @@
 {
-  "_comment": "Genereres ved container-start fra env-vars via /docker-entrypoint.d/40-runtime-config.sh. Felter merges ind i Angular's environment-objekt før bootstrap. Override hvilken som helst environment-property runtime.",
+  "_comment": "Generated at container start from env-vars via /docker-entrypoint.d/40-runtime-config.sh. Fields are merged into Angular's environment object before bootstrap. Override any environment property at runtime.",
   "hostRemoteEntry": "${HOST_REMOTE_ENTRY}",
   "hostExposedModule": "${HOST_EXPOSED_MODULE}"
 }
