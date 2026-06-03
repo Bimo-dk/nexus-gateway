@@ -39,8 +39,16 @@ jobs:
           push: true
           tags: ${{ steps.meta.outputs.tags }}
           labels: ${{ steps.meta.outputs.labels }}
-          build-args: |
-            NEXUS_TOKEN=${{ secrets.NEXUS_TOKEN }}
-            HOST_REMOTE_ENTRY=${{ vars.HOST_REMOTE_ENTRY || '/host/remoteEntry.json' }}
           cache-from: type=gha
           cache-to: type=gha,mode=max
+
+# Image bygges UDEN HOST_REMOTE_ENTRY — det er runtime config nu.
+# Konsumenter pulles + køres med deres egen HOST_REMOTE_ENTRY:
+#
+#   docker pull ghcr.io/bimo-dk/nexus-gateway:latest
+#   docker run -p 8668:80 \
+#     -e HOST_REMOTE_ENTRY=https://prod.nexus.dk/host/remoteEntry.json \
+#     ghcr.io/bimo-dk/nexus-gateway:latest
+#
+# Default hvis ingen HOST_REMOTE_ENTRY sat: /host/remoteEntry.json (forventer
+# host bag samme reverse proxy).
