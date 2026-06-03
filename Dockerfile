@@ -1,20 +1,20 @@
 # ============================================================================
-# app-template — public entry-point (loader host shell via Native Federation)
-# Bygges fra projekt-rod-context.
+# app-template — public entry-point der loader host shell via Native Federation
+# Ingen @bimo-dk dependencies — simpel Angular build.
 # ============================================================================
 
 FROM node:22-alpine AS builder
+WORKDIR /app
 
-WORKDIR /workspace/app-template
-COPY app-template/package*.json ./
+COPY package*.json ./
 RUN npm install --no-audit --no-fund --legacy-peer-deps
 
 ARG HOST_REMOTE_ENTRY=/host/remoteEntry.json
 ARG NEXUS_TOKEN=dev-token-change-in-production
 
-COPY app-template/tsconfig*.json app-template/angular.json app-template/federation.config.js ./
-COPY app-template/src ./src
-COPY app-template/public ./public
+COPY tsconfig*.json angular.json federation.config.js ./
+COPY src ./src
+COPY public ./public
 
 RUN node -e "const fs=require('fs'); \
 let envPath='src/environments/environment.prod.ts'; \
@@ -29,14 +29,11 @@ fs.writeFileSync(intPath, intFile);" \
 
 RUN npm run build:prod
 
-# ============================================================================
-# Nginx runtime
-# ============================================================================
 FROM nginx:alpine
 RUN apk add --no-cache wget
 
-COPY --from=builder /workspace/app-template/dist/app/browser /usr/share/nginx/html
-COPY app-template/nginx.conf /etc/nginx/conf.d/default.conf
+COPY --from=builder /app/dist/app/browser /usr/share/nginx/html
+COPY nginx.conf /etc/nginx/conf.d/default.conf
 
 EXPOSE 80
 
