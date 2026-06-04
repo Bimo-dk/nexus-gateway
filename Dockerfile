@@ -30,12 +30,13 @@ fs.writeFileSync(intPath, intFile);" \
 RUN npm run build:prod
 
 FROM nginx:alpine
-RUN apk add --no-cache wget gettext
+RUN apk add --no-cache wget gettext jq
 
 COPY --from=builder /app/dist/app/browser /usr/share/nginx/html
 COPY nginx.conf /etc/nginx/conf.d/default.conf
 COPY docker-entrypoint.d/40-runtime-config.sh /docker-entrypoint.d/40-runtime-config.sh
-RUN chmod +x /docker-entrypoint.d/40-runtime-config.sh
+COPY docker-entrypoint.d/50-ws-reload.sh /docker-entrypoint.d/50-ws-reload.sh
+RUN chmod +x /docker-entrypoint.d/40-runtime-config.sh /docker-entrypoint.d/50-ws-reload.sh
 
 EXPOSE 80
 
