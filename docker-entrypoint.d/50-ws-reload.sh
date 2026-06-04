@@ -5,7 +5,7 @@ set -eu
 
 REGISTRY_INTERNAL_URL="${REGISTRY_INTERNAL_URL:-http://registry:3000}"
 NEXUS_TOKEN="${NEXUS_TOKEN:-}"
-REMOTES_CONF=/etc/nginx/conf.d/remotes.conf
+REMOTES_CONF=/etc/nginx/nexus-remotes.conf
 POLL_INTERVAL="${NEXUS_RELOAD_INTERVAL:-15}"
 
 fetch_remotes() {
