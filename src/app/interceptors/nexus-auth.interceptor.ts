@@ -4,8 +4,7 @@ import { HttpInterceptorFn } from '@angular/common/http';
 const NEXUS_TOKEN = 'NEXUS_TOKEN_PLACEHOLDER';
 
 export const nexusAuthInterceptor: HttpInterceptorFn = (req, next) => {
-  // Add X-Nexus-Token when host (running in app's runtime) calls /api/...
-  if (!req.url.startsWith('/api/') && !req.url.includes('/api/remotes')) {
+  if (!req.url.startsWith('/api/')) {
     return next(req);
   }
   const authed = req.clone({

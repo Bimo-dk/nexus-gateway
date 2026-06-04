@@ -6,7 +6,7 @@ set -eu
 
 TEMPLATE=/usr/share/nginx/html/assets/config.template.json
 OUTPUT=/usr/share/nginx/html/assets/config.json
-REMOTES_CONF=/etc/nginx/conf.d/remotes.conf
+REMOTES_CONF=/etc/nginx/nexus-remotes.conf
 
 if [ ! -f "$TEMPLATE" ]; then
   echo "[runtime-config] Template not found: $TEMPLATE — skipping" >&2
