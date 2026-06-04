@@ -1,6 +1,7 @@
 import { ApplicationConfig, provideZoneChangeDetection } from '@angular/core';
 import { provideRouter } from '@angular/router';
 import { provideHttpClient, withInterceptors } from '@angular/common/http';
+import { provideNexusConfig } from '@bimo-dk/nexus-runtime';
 import { routes } from './app.routes';
 import { nexusAuthInterceptor } from './interceptors/nexus-auth.interceptor';
 import { correlationIdInterceptor } from './interceptors/correlation-id.interceptor';
@@ -9,10 +10,15 @@ export const appConfig: ApplicationConfig = {
   providers: [
     provideZoneChangeDetection({ eventCoalescing: true }),
     provideRouter(routes),
-    // Note: app's appConfig is the effective config FOR ALL Angular services that
-    // run in this browser instance (incl. host loaded via federation). Therefore
-    // BOTH nexusAuth + correlationId interceptors must be registered here,
-    // not only in host/manager — even though they also have their own copies for standalone use.
+    // Both interceptors registered here — effective for all Angular services including
+    // the host shell loaded via federation, which runs in this application's injector.
     provideHttpClient(withInterceptors([nexusAuthInterceptor, correlationIdInterceptor])),
+    // Provides NEXUS_CONFIG so host-shell services (DynamicNexusService etc.) can inject it.
+    // The host shell runs in this injector context, not its own bootstrap scope.
+    provideNexusConfig({
+      registryUrl: '/api',
+      nexusToken: 'dev-token-change-in-production',
+      staticBackupUrl: '/assets/registry-backup/remotes.json',
+    }),
   ],
 };

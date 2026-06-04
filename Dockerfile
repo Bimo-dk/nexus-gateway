@@ -7,7 +7,8 @@ FROM node:22-alpine AS builder
 WORKDIR /app
 
 COPY package*.json ./
-RUN npm install --no-audit --no-fund --legacy-peer-deps
+RUN printf '@bimo-dk:registry=http://host.docker.internal:4873\nlegacy-peer-deps=true\n' > .npmrc
+RUN rm -f package-lock.json && npm install --no-audit --no-fund --legacy-peer-deps
 
 ARG HOST_REMOTE_ENTRY=/host/remoteEntry.json
 ARG NEXUS_TOKEN=dev-token-change-in-production
