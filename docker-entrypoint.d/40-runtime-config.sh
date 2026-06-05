@@ -15,17 +15,19 @@ fi
 
 export HOST_REMOTE_ENTRY="${HOST_REMOTE_ENTRY:-/host/remoteEntry.json}"
 export HOST_EXPOSED_MODULE="${HOST_EXPOSED_MODULE:-./AppShell}"
+export NEXUS_TOKEN="${NEXUS_TOKEN:-}"
 
 envsubst < "$TEMPLATE" > "$OUTPUT"
 
 echo "[runtime-config] Generated $OUTPUT with:"
 echo "  HOST_REMOTE_ENTRY=$HOST_REMOTE_ENTRY"
 echo "  HOST_EXPOSED_MODULE=$HOST_EXPOSED_MODULE"
+echo "  NEXUS_TOKEN=<redacted>"
 
 # Generate /etc/nginx/conf.d/remotes.conf from registry API.
 # On failure (registry not yet ready) writes an empty placeholder so nginx
 # can start; 50-ws-reload.sh will populate routes once the registry is up.
-REGISTRY_INTERNAL_URL="${REGISTRY_INTERNAL_URL:-http://registry:3000}"
+REGISTRY_INTERNAL_URL="${REGISTRY_INTERNAL_URL:-http://registry:8670}"
 NEXUS_TOKEN="${NEXUS_TOKEN:-}"
 
 fetch_remotes() {

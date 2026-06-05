@@ -1,5 +1,7 @@
 {
   "_comment": "Generated at container start from env-vars via /docker-entrypoint.d/40-runtime-config.sh. Fields are merged into Angular's environment object before bootstrap. Override any environment property at runtime.",
   "hostRemoteEntry": "${HOST_REMOTE_ENTRY}",
-  "hostExposedModule": "${HOST_EXPOSED_MODULE}"
+  "hostExposedModule": "${HOST_EXPOSED_MODULE}",
+  "registryUrl": "/api",
+  "nexusToken": "${NEXUS_TOKEN}"
 }

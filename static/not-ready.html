@@ -1,0 +1,189 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>Nexus — Waiting for host</title>
+  <style>
+    *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+    :root {
+      --primary: #6366f1;
+      --primary-dark: #4f46e5;
+      --text: #1e293b;
+      --text-muted: #64748b;
+      --surface: #f8fafc;
+      --border: #e2e8f0;
+      --ok: #16a34a;
+      --ok-bg: #dcfce7;
+      --warn: #d97706;
+      --warn-bg: #fef3c7;
+    }
+    body {
+      font-family: system-ui, -apple-system, sans-serif;
+      color: var(--text);
+      background: var(--surface);
+      min-height: 100vh;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      padding: 24px;
+    }
+    .card {
+      background: #fff;
+      border: 1px solid var(--border);
+      border-radius: 12px;
+      padding: 40px 48px;
+      max-width: 480px;
+      width: 100%;
+      text-align: center;
+    }
+    .wordmark {
+      font-size: 13px;
+      font-weight: 700;
+      letter-spacing: 0.12em;
+      text-transform: uppercase;
+      color: var(--primary);
+      margin-bottom: 32px;
+    }
+    .pulse-ring {
+      width: 56px;
+      height: 56px;
+      border-radius: 50%;
+      background: var(--warn-bg);
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      margin: 0 auto 24px;
+      position: relative;
+    }
+    .pulse-ring::after {
+      content: '';
+      position: absolute;
+      inset: -6px;
+      border-radius: 50%;
+      border: 2px solid var(--warn);
+      animation: pulse 2s ease-out infinite;
+      opacity: 0;
+    }
+    @keyframes pulse {
+      0%   { transform: scale(0.9); opacity: 0.6; }
+      100% { transform: scale(1.3); opacity: 0; }
+    }
+    .pulse-ring svg { width: 28px; height: 28px; color: var(--warn); }
+    h1 { font-size: 20px; font-weight: 700; margin-bottom: 8px; }
+    .subtitle { font-size: 14px; color: var(--text-muted); line-height: 1.6; margin-bottom: 32px; }
+    .meta {
+      background: var(--surface);
+      border: 1px solid var(--border);
+      border-radius: 8px;
+      padding: 16px;
+      text-align: left;
+      margin-bottom: 28px;
+      display: grid;
+      gap: 8px;
+    }
+    .meta-row { display: flex; justify-content: space-between; align-items: center; font-size: 13px; }
+    .meta-label { color: var(--text-muted); }
+    .meta-value { font-weight: 600; font-family: monospace; font-size: 12px; }
+    .badge {
+      display: inline-flex;
+      align-items: center;
+      gap: 5px;
+      font-size: 12px;
+      font-weight: 600;
+      padding: 3px 10px;
+      border-radius: 999px;
+    }
+    .badge-ok   { background: var(--ok-bg);   color: var(--ok);   }
+    .badge-wait { background: var(--warn-bg);  color: var(--warn); }
+    .dot {
+      width: 7px; height: 7px;
+      border-radius: 50%;
+      background: currentColor;
+    }
+    .dot-pulse { animation: blink 1.4s ease-in-out infinite; }
+    @keyframes blink { 0%,100% { opacity: 1; } 50% { opacity: 0.25; } }
+    .poll-note { font-size: 12px; color: var(--text-muted); }
+  </style>
+</head>
+<body>
+  <div class="card">
+    <div class="wordmark">Nexus Gateway</div>
+
+    <div class="pulse-ring">
+      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+        <path d="M12 2L2 7l10 5 10-5-10-5z"/>
+        <path d="M2 17l10 5 10-5"/>
+        <path d="M2 12l10 5 10-5"/>
+      </svg>
+    </div>
+
+    <h1>Waiting for host</h1>
+    <p class="subtitle">
+      The gateway is running and connected to the registry,
+      but no host has been assigned to this gate yet.
+    </p>
+
+    <div class="meta">
+      <div class="meta-row">
+        <span class="meta-label">Gate</span>
+        <span class="meta-value" id="meta-gate">—</span>
+      </div>
+      <div class="meta-row">
+        <span class="meta-label">Registry</span>
+        <span id="badge-registry" class="badge badge-wait">
+          <span class="dot dot-pulse"></span> checking
+        </span>
+      </div>
+      <div class="meta-row">
+        <span class="meta-label">Host</span>
+        <span id="badge-host" class="badge badge-wait">
+          <span class="dot dot-pulse"></span> not connected
+        </span>
+      </div>
+    </div>
+
+    <p class="poll-note" id="poll-note">Checking for host every 5 s&hellip;</p>
+  </div>
+
+  <script>
+    const cfg = window.__NEXUS_GATEWAY_CONFIG__;
+    const gateEl = document.getElementById('meta-gate');
+    const regBadge = document.getElementById('badge-registry');
+    const hostBadge = document.getElementById('badge-host');
+    const pollNote = document.getElementById('poll-note');
+
+    if (cfg) {
+      gateEl.textContent = cfg.gateName || '—';
+    }
+
+    async function poll() {
+      try {
+        const r = await fetch('/health');
+        const data = await r.json();
+
+        regBadge.className = data.registry_connected
+          ? 'badge badge-ok'
+          : 'badge badge-wait';
+        regBadge.innerHTML = data.registry_connected
+          ? '<span class="dot"></span> connected'
+          : '<span class="dot dot-pulse"></span> disconnected';
+
+        if (data.host_remote_entry) {
+          hostBadge.className = 'badge badge-ok';
+          hostBadge.innerHTML = '<span class="dot"></span> connected';
+          pollNote.textContent = 'Host connected — reloading…';
+          setTimeout(() => window.location.reload(), 800);
+          return;
+        }
+      } catch (_) {
+        regBadge.className = 'badge badge-wait';
+        regBadge.innerHTML = '<span class="dot dot-pulse"></span> unreachable';
+      }
+      setTimeout(poll, 5000);
+    }
+
+    poll();
+  </script>
+</body>
+</html>

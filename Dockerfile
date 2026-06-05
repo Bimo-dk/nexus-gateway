@@ -1,47 +1,23 @@
-# ============================================================================
-# app-template — public entry-point der loader host shell via Native Federation
-# Ingen @bimo-dk dependencies — simpel Angular build.
-# ============================================================================
-
-FROM node:22-alpine AS builder
+FROM rust:1.78-slim AS builder
 WORKDIR /app
 
-COPY package*.json ./
-RUN printf '@bimo-dk:registry=http://host.docker.internal:4873\nlegacy-peer-deps=true\n' > .npmrc
-RUN rm -f package-lock.json && npm install --no-audit --no-fund --legacy-peer-deps
+# Cache dependency compilation separately from source
+COPY Cargo.toml Cargo.lock ./
+RUN mkdir src && echo 'fn main(){}' > src/main.rs && cargo build --release && rm -rf src
 
-ARG HOST_REMOTE_ENTRY=/host/remoteEntry.json
-ARG NEXUS_TOKEN=dev-token-change-in-production
-
-COPY tsconfig*.json angular.json federation.config.js ./
 COPY src ./src
-COPY public ./public
+COPY static ./static
+RUN touch src/main.rs && cargo build --release
 
-RUN node -e "const fs=require('fs'); \
-let envPath='src/environments/environment.prod.ts'; \
-let envFile=fs.readFileSync(envPath,'utf8'); \
-envFile=envFile.replace('HOST_REMOTE_ENTRY_PLACEHOLDER', process.env.HOST_REMOTE_ENTRY || '/host/remoteEntry.json'); \
-fs.writeFileSync(envPath, envFile); \
-let intPath='src/app/interceptors/nexus-auth.interceptor.ts'; \
-let intFile=fs.readFileSync(intPath,'utf8'); \
-intFile=intFile.replace('NEXUS_TOKEN_PLACEHOLDER', process.env.NEXUS_TOKEN || 'dev-token'); \
-fs.writeFileSync(intPath, intFile);" \
-  HOST_REMOTE_ENTRY=${HOST_REMOTE_ENTRY} NEXUS_TOKEN=${NEXUS_TOKEN}
+FROM debian:bookworm-slim
+RUN apt-get update && apt-get install -y --no-install-recommends ca-certificates curl \
+    && rm -rf /var/lib/apt/lists/*
 
-RUN npm run build:prod
+COPY --from=builder /app/target/release/nexus-gateway /usr/local/bin/nexus-gateway
 
-FROM nginx:alpine
-RUN apk add --no-cache wget gettext jq
+EXPOSE 8668
 
-COPY --from=builder /app/dist/app/browser /usr/share/nginx/html
-COPY nginx.conf /etc/nginx/conf.d/default.conf
-COPY docker-entrypoint.d/40-runtime-config.sh /docker-entrypoint.d/40-runtime-config.sh
-COPY docker-entrypoint.d/50-ws-reload.sh /docker-entrypoint.d/50-ws-reload.sh
-RUN chmod +x /docker-entrypoint.d/40-runtime-config.sh /docker-entrypoint.d/50-ws-reload.sh
+HEALTHCHECK --interval=30s --timeout=5s --start-period=20s --retries=3 \
+  CMD curl -sf http://localhost:8668/health || exit 1
 
-EXPOSE 80
-
-HEALTHCHECK --interval=30s --timeout=10s --start-period=15s --retries=3 \
-  CMD wget -qO- http://localhost/health || exit 1
-
-CMD ["nginx", "-g", "daemon off;"]
+CMD ["nexus-gateway"]
