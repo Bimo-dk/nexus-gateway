@@ -2,9 +2,9 @@ use std::net::IpAddr;
 use std::time::{Duration, Instant};
 
 use crate::protection::{BanEntry, ProtectionState};
-use crate::state::{ProtectionConfig, GatewayConfig, GatewayState, HostFramework, new_shared};
-use crate::AppState;
 use crate::route_table::RouteTable;
+use crate::state::{new_shared, GatewayConfig, GatewayState, HostFramework, ProtectionConfig};
+use crate::AppState;
 
 fn default_cfg() -> ProtectionConfig {
     ProtectionConfig::default()
@@ -46,17 +46,30 @@ fn ip(s: &str) -> IpAddr {
 #[test]
 fn connection_limit_blocks_when_exceeded() {
     let prot = ProtectionState::new();
-    let cfg = ProtectionConfig { max_connections_per_ip: 2, ..default_cfg() };
+    let cfg = ProtectionConfig {
+        max_connections_per_ip: 2,
+        ..default_cfg()
+    };
     let addr = ip("10.0.0.1");
 
     // Acquire two slots manually
     let entry = prot.connections.entry(addr).or_default();
-    entry.active_http.store(2, std::sync::atomic::Ordering::Relaxed);
+    entry
+        .active_http
+        .store(2, std::sync::atomic::Ordering::Relaxed);
     drop(entry);
 
     // Third attempt should be over limit
-    let prev = prot.connections.entry(addr).or_default().active_http.fetch_add(1, std::sync::atomic::Ordering::Relaxed);
-    assert!(prev + 1 > cfg.max_connections_per_ip, "expected connection limit to be exceeded");
+    let prev = prot
+        .connections
+        .entry(addr)
+        .or_default()
+        .active_http
+        .fetch_add(1, std::sync::atomic::Ordering::Relaxed);
+    assert!(
+        prev + 1 > cfg.max_connections_per_ip,
+        "expected connection limit to be exceeded"
+    );
 }
 
 // ---- Rate limiting ----
@@ -73,7 +86,10 @@ fn rate_limit_allows_within_burst() {
     let addr = ip("10.0.0.2");
 
     for _ in 0..5 {
-        assert!(prot.try_rate_limit(addr, &cfg).is_ok(), "expected token to be available");
+        assert!(
+            prot.try_rate_limit(addr, &cfg).is_ok(),
+            "expected token to be available"
+        );
     }
 }
 
@@ -127,7 +143,10 @@ fn auto_ban_after_threshold_violations() {
         prot.record_violation(addr, "test_violation", &cfg);
     }
 
-    assert!(prot.check_ban(addr).is_err(), "IP should be banned after threshold");
+    assert!(
+        prot.check_ban(addr).is_err(),
+        "IP should be banned after threshold"
+    );
     let (retry_secs, reason) = prot.check_ban(addr).unwrap_err();
     assert!(retry_secs > 0);
     assert_eq!(reason, "test_violation");
@@ -138,15 +157,21 @@ fn unban_clears_ban() {
     let prot = ProtectionState::new();
     let addr = ip("10.0.0.6");
 
-    prot.bans.insert(addr, BanEntry {
-        banned_until: Instant::now() + Duration::from_secs(300),
-        reason: "test".into(),
-        violation_count: 1,
-    });
+    prot.bans.insert(
+        addr,
+        BanEntry {
+            banned_until: Instant::now() + Duration::from_secs(300),
+            reason: "test".into(),
+            violation_count: 1,
+        },
+    );
 
     assert!(prot.check_ban(addr).is_err(), "should be banned");
     assert!(prot.unban(addr), "unban should return true");
-    assert!(prot.check_ban(addr).is_ok(), "should not be banned after unban");
+    assert!(
+        prot.check_ban(addr).is_ok(),
+        "should not be banned after unban"
+    );
 }
 
 #[test]
@@ -154,14 +179,20 @@ fn expired_ban_is_removed_on_check() {
     let prot = ProtectionState::new();
     let addr = ip("10.0.0.7");
 
-    prot.bans.insert(addr, BanEntry {
-        banned_until: Instant::now() - Duration::from_secs(1), // expired
-        reason: "old ban".into(),
-        violation_count: 1,
-    });
+    prot.bans.insert(
+        addr,
+        BanEntry {
+            banned_until: Instant::now() - Duration::from_secs(1), // expired
+            reason: "old ban".into(),
+            violation_count: 1,
+        },
+    );
 
     assert!(prot.check_ban(addr).is_ok(), "expired ban should not block");
-    assert!(!prot.bans.contains_key(&addr), "expired ban should be removed");
+    assert!(
+        !prot.bans.contains_key(&addr),
+        "expired ban should be removed"
+    );
 }
 
 // ---- WebSocket limits ----
@@ -174,7 +205,10 @@ fn ws_connection_limit_blocks_when_exceeded() {
 
     assert!(prot.try_acquire_ws(addr, limit));
     assert!(prot.try_acquire_ws(addr, limit));
-    assert!(!prot.try_acquire_ws(addr, limit), "third WS connection should be rejected");
+    assert!(
+        !prot.try_acquire_ws(addr, limit),
+        "third WS connection should be rejected"
+    );
 }
 
 #[test]
@@ -199,6 +233,12 @@ async fn hot_reload_protection_config() {
         s.gateway_config.protection.rate_limit_requests_per_second = 999;
     }
 
-    let rps = app.gateway.read().await.gateway_config.protection.rate_limit_requests_per_second;
+    let rps = app
+        .gateway
+        .read()
+        .await
+        .gateway_config
+        .protection
+        .rate_limit_requests_per_second;
     assert_eq!(rps, 999, "hot-reload should update in-place");
 }

@@ -28,7 +28,11 @@ pub async fn handler(
     req: axum::extract::Request,
 ) -> Response<Body> {
     let path = req.uri().path().to_owned();
-    let query = req.uri().query().map(|q| format!("?{}", q)).unwrap_or_default();
+    let query = req
+        .uri()
+        .query()
+        .map(|q| format!("?{}", q))
+        .unwrap_or_default();
 
     let Some((prefix, target)) = app.routes.resolve(&path) else {
         return not_found();
@@ -102,9 +106,9 @@ pub async fn handler(
         .map(|b| b.to_bytes())
         .unwrap_or_default();
 
-    let mut response = builder
-        .body(Body::from(resp_bytes))
-        .unwrap_or_else(|_| error_response(StatusCode::INTERNAL_SERVER_ERROR, "response_build_error"));
+    let mut response = builder.body(Body::from(resp_bytes)).unwrap_or_else(|_| {
+        error_response(StatusCode::INTERNAL_SERVER_ERROR, "response_build_error")
+    });
 
     {
         let s = app.gateway.read().await;

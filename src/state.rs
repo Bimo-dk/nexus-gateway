@@ -1,10 +1,11 @@
+use serde::{Deserialize, Serialize};
 use std::sync::Arc;
 use tokio::sync::RwLock;
-use serde::{Deserialize, Serialize};
 
-#[derive(Debug, Clone, Serialize, Deserialize, PartialEq)]
+#[derive(Debug, Clone, Default, Serialize, Deserialize, PartialEq)]
 #[serde(rename_all = "lowercase")]
 pub enum HostFramework {
+    #[default]
     Auto,
     Angular,
     Vue,
@@ -19,12 +20,6 @@ impl std::fmt::Display for HostFramework {
             HostFramework::Vue => write!(f, "vue"),
             HostFramework::React => write!(f, "react"),
         }
-    }
-}
-
-impl Default for HostFramework {
-    fn default() -> Self {
-        HostFramework::Auto
     }
 }
 
@@ -126,6 +121,7 @@ pub fn new_shared(state: GatewayState) -> SharedState {
 #[derive(Debug, Deserialize)]
 pub struct RegistryGate {
     pub id: String,
+    #[allow(dead_code)]
     pub name: String,
     pub host: Option<RegistryHost>,
 }
@@ -147,6 +143,7 @@ pub struct RegistryHost {
 #[derive(Debug, Deserialize, Clone)]
 #[serde(rename_all = "camelCase")]
 pub struct RegistryRemote {
+    #[allow(dead_code)]
     pub name: String,
     pub url: String,
     pub route_path: String,

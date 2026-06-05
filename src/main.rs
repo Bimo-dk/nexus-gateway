@@ -21,9 +21,6 @@ mod tests {
     mod startup_tests;
 }
 
-use std::net::{IpAddr, SocketAddr};
-use std::sync::atomic::Ordering;
-use std::time::{Duration, Instant};
 use axum::{
     extract::{ConnectInfo, Path, Request, State, WebSocketUpgrade},
     http::StatusCode,
@@ -33,11 +30,14 @@ use axum::{
     Router,
 };
 use serde::Deserialize;
+use std::net::{IpAddr, SocketAddr};
+use std::sync::atomic::Ordering;
+use std::time::{Duration, Instant};
 use tower_http::{compression::CompressionLayer, trace::TraceLayer};
 use tracing::info;
 use tracing_subscriber::EnvFilter;
 
-use crate::protection::{BanEntry, SharedProtection, ProtectionState, WsGuard};
+use crate::protection::{BanEntry, ProtectionState, SharedProtection, WsGuard};
 use crate::route_table::RouteTable;
 use crate::state::{new_shared, SharedState};
 
@@ -63,8 +63,7 @@ async fn main() {
     } else {
         tracing_subscriber::fmt()
             .with_env_filter(
-                EnvFilter::from_default_env()
-                    .add_directive(tracing::Level::INFO.into()),
+                EnvFilter::from_default_env().add_directive(tracing::Level::INFO.into()),
             )
             .init();
     }
@@ -138,10 +137,12 @@ async fn main() {
     let addr = SocketAddr::from(([0, 0, 0, 0], port));
     info!(%addr, "nexus-gateway listening");
 
-    let listener = tokio::net::TcpListener::bind(addr).await.unwrap_or_else(|e| {
-        eprintln!("bind error: {e}");
-        std::process::exit(1);
-    });
+    let listener = tokio::net::TcpListener::bind(addr)
+        .await
+        .unwrap_or_else(|e| {
+            eprintln!("bind error: {e}");
+            std::process::exit(1);
+        });
 
     axum::serve(
         listener,
@@ -166,7 +167,11 @@ async fn ws_handler(
     ws: WebSocketUpgrade,
     req: Request,
 ) -> impl IntoResponse {
-    let query = req.uri().query().map(|q| format!("?{}", q)).unwrap_or_default();
+    let query = req
+        .uri()
+        .query()
+        .map(|q| format!("?{}", q))
+        .unwrap_or_default();
     let ip = addr.ip();
     let (limit, ws_url) = {
         let s = app.gateway.read().await;
@@ -242,28 +247,38 @@ async fn protection_status(State(app): State<AppState>) -> impl IntoResponse {
         .map(|e| {
             let ip = *e.key();
             let vc = e.value().count.load(Ordering::Relaxed);
-            let (http, ws) = prot.connections.get(&ip)
-                .map(|c| (
-                    c.active_http.load(Ordering::Relaxed),
-                    c.active_ws.load(Ordering::Relaxed),
-                ))
+            let (http, ws) = prot
+                .connections
+                .get(&ip)
+                .map(|c| {
+                    (
+                        c.active_http.load(Ordering::Relaxed),
+                        c.active_ws.load(Ordering::Relaxed),
+                    )
+                })
                 .unwrap_or((0, 0));
-            let is_banned = prot.bans.get(&ip).map(|b| b.banned_until > now).unwrap_or(false);
+            let is_banned = prot
+                .bans
+                .get(&ip)
+                .map(|b| b.banned_until > now)
+                .unwrap_or(false);
             (ip, vc, http, ws, is_banned)
         })
         .collect();
-    top_ips.sort_by(|a, b| b.1.cmp(&a.1));
+    top_ips.sort_by_key(|b| std::cmp::Reverse(b.1));
     top_ips.truncate(10);
 
     let top_ips_json: Vec<_> = top_ips
         .into_iter()
-        .map(|(ip, vc, http, ws, banned)| serde_json::json!({
-            "ip": ip.to_string(),
-            "violation_count": vc,
-            "active_connections_http": http,
-            "active_connections_ws": ws,
-            "is_banned": banned,
-        }))
+        .map(|(ip, vc, http, ws, banned)| {
+            serde_json::json!({
+                "ip": ip.to_string(),
+                "violation_count": vc,
+                "active_connections_http": http,
+                "active_connections_ws": ws,
+                "is_banned": banned,
+            })
+        })
         .collect();
 
     let cfg = {
@@ -286,7 +301,8 @@ struct BanRequest {
 }
 
 async fn ban_ip(State(app): State<AppState>, req: Request) -> Response {
-    let token = req.headers()
+    let token = req
+        .headers()
         .get("x-nexus-token")
         .and_then(|v| v.to_str().ok())
         .unwrap_or("")
@@ -294,7 +310,9 @@ async fn ban_ip(State(app): State<AppState>, req: Request) -> Response {
     if !is_authed(&token, &app).await {
         return (StatusCode::UNAUTHORIZED, "Missing or invalid X-Nexus-Token").into_response();
     }
-    let body = axum::body::to_bytes(req.into_body(), 16_384).await.unwrap_or_default();
+    let body = axum::body::to_bytes(req.into_body(), 16_384)
+        .await
+        .unwrap_or_default();
     let ban_req: BanRequest = match serde_json::from_slice(&body) {
         Ok(r) => r,
         Err(e) => return (StatusCode::BAD_REQUEST, e.to_string()).into_response(),
@@ -305,18 +323,27 @@ async fn ban_ip(State(app): State<AppState>, req: Request) -> Response {
     };
     let duration = {
         let s = app.gateway.read().await;
-        ban_req.duration_seconds.unwrap_or(s.gateway_config.protection.ban_duration_seconds)
+        ban_req
+            .duration_seconds
+            .unwrap_or(s.gateway_config.protection.ban_duration_seconds)
     };
-    app.protection.bans.insert(ip, BanEntry {
-        banned_until: Instant::now() + Duration::from_secs(duration),
-        reason: "manual ban".into(),
-        violation_count: 0,
-    });
+    app.protection.bans.insert(
+        ip,
+        BanEntry {
+            banned_until: Instant::now() + Duration::from_secs(duration),
+            reason: "manual ban".into(),
+            violation_count: 0,
+        },
+    );
     metrics::BANNED_IPS.inc();
-    (StatusCode::OK, axum::Json(serde_json::json!({
-        "banned": ip.to_string(),
-        "duration_seconds": duration,
-    }))).into_response()
+    (
+        StatusCode::OK,
+        axum::Json(serde_json::json!({
+            "banned": ip.to_string(),
+            "duration_seconds": duration,
+        })),
+    )
+        .into_response()
 }
 
 async fn unban_ip(
@@ -324,7 +351,8 @@ async fn unban_ip(
     Path(ip_str): Path<String>,
     req: Request,
 ) -> Response {
-    let token = req.headers()
+    let token = req
+        .headers()
         .get("x-nexus-token")
         .and_then(|v| v.to_str().ok())
         .unwrap_or("")
@@ -337,14 +365,19 @@ async fn unban_ip(
         Err(_) => return (StatusCode::BAD_REQUEST, "invalid IP address").into_response(),
     };
     let removed = app.protection.unban(ip);
-    (StatusCode::OK, axum::Json(serde_json::json!({
-        "unbanned": ip.to_string(),
-        "was_banned": removed,
-    }))).into_response()
+    (
+        StatusCode::OK,
+        axum::Json(serde_json::json!({
+            "unbanned": ip.to_string(),
+            "was_banned": removed,
+        })),
+    )
+        .into_response()
 }
 
 async fn clear_bans(State(app): State<AppState>, req: Request) -> Response {
-    let token = req.headers()
+    let token = req
+        .headers()
         .get("x-nexus-token")
         .and_then(|v| v.to_str().ok())
         .unwrap_or("")
@@ -354,7 +387,11 @@ async fn clear_bans(State(app): State<AppState>, req: Request) -> Response {
     }
     let count = app.protection.bans.len();
     app.protection.clear_bans();
-    (StatusCode::OK, axum::Json(serde_json::json!({ "cleared": count }))).into_response()
+    (
+        StatusCode::OK,
+        axum::Json(serde_json::json!({ "cleared": count })),
+    )
+        .into_response()
 }
 
 async fn is_authed(token: &str, app: &AppState) -> bool {

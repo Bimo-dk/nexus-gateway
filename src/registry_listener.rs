@@ -1,7 +1,7 @@
-use std::time::Duration;
 use futures_util::{SinkExt, StreamExt};
 use rand::Rng;
 use serde::Deserialize;
+use std::time::Duration;
 use tokio_tungstenite::{connect_async, tungstenite::Message};
 use tracing::{info, warn};
 
@@ -13,11 +13,22 @@ use crate::state::{RegistryGate, RegistryRemote, SharedState};
 #[derive(Debug, Deserialize)]
 #[serde(tag = "type", rename_all = "snake_case")]
 enum WsMessage {
-    RemotesChanged { remotes: Vec<RegistryRemote> },
-    HostChanged { host: HostChangedPayload },
-    GateChanged { gate: GateChangedPayload },
-    ConfigChanged { section: String, value: serde_json::Value },
-    ReconnectPolicyChanged { policy: ReconnectPolicyPayload },
+    RemotesChanged {
+        remotes: Vec<RegistryRemote>,
+    },
+    HostChanged {
+        host: HostChangedPayload,
+    },
+    GateChanged {
+        gate: GateChangedPayload,
+    },
+    ConfigChanged {
+        section: String,
+        value: serde_json::Value,
+    },
+    ReconnectPolicyChanged {
+        policy: ReconnectPolicyPayload,
+    },
     #[serde(other)]
     Unknown,
 }
@@ -148,10 +159,13 @@ async fn handle_message(
                     continue;
                 }
                 let prefix = format!("/remotes/{}/", remote.route_path.trim_matches('/'));
-                routes.upsert(prefix.clone(), UpstreamTarget {
-                    upstream_url: remote.url.clone(),
-                    enabled: remote.enabled,
-                });
+                routes.upsert(
+                    prefix.clone(),
+                    UpstreamTarget {
+                        upstream_url: remote.url.clone(),
+                        enabled: remote.enabled,
+                    },
+                );
                 info!(prefix, url = %remote.url, "remote route upserted");
             }
         }
@@ -165,7 +179,13 @@ async fn handle_message(
             if let Some(url) = host.url {
                 info!(old = %s.host_url, new = %url, "host_url changed");
                 s.host_url = url.clone();
-                routes.upsert("/host/", UpstreamTarget { upstream_url: url, enabled: true });
+                routes.upsert(
+                    "/host/",
+                    UpstreamTarget {
+                        upstream_url: url,
+                        enabled: true,
+                    },
+                );
             }
             if let Some(fw) = host.framework {
                 info!(framework = %fw, "host_framework changed");

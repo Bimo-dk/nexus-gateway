@@ -5,6 +5,7 @@ use tracing::warn;
 
 use crate::state::SharedState;
 
+#[allow(dead_code)]
 pub async fn handler(
     ws: axum::extract::WebSocketUpgrade,
     gateway: SharedState,
@@ -76,10 +77,10 @@ fn tung_to_axum(msg: tokio_tungstenite::tungstenite::Message) -> axum::extract::
     use axum::extract::ws::Message as A;
     use tokio_tungstenite::tungstenite::Message as T;
     match msg {
-        T::Text(t) => A::Text(t.into()),
-        T::Binary(b) => A::Binary(b.into()),
-        T::Ping(p) => A::Ping(p.into()),
-        T::Pong(p) => A::Pong(p.into()),
+        T::Text(t) => A::Text(t),
+        T::Binary(b) => A::Binary(b),
+        T::Ping(p) => A::Ping(p),
+        T::Pong(p) => A::Pong(p),
         T::Close(_) | T::Frame(_) => A::Close(None),
     }
 }

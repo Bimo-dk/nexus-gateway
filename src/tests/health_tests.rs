@@ -1,8 +1,8 @@
-use crate::AppState;
-use crate::state::{GatewayConfig, GatewayState, HostFramework, new_shared};
-use crate::route_table::RouteTable;
-use crate::proxy::build_client;
 use crate::http_client;
+use crate::proxy::build_client;
+use crate::route_table::RouteTable;
+use crate::state::{new_shared, GatewayConfig, GatewayState, HostFramework};
+use crate::AppState;
 
 fn make_app_state() -> AppState {
     let state = GatewayState {

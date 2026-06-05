@@ -1,7 +1,10 @@
 use crate::route_table::{RouteTable, UpstreamTarget};
 
 fn target(url: &str) -> UpstreamTarget {
-    UpstreamTarget { upstream_url: url.into(), enabled: true }
+    UpstreamTarget {
+        upstream_url: url.into(),
+        enabled: true,
+    }
 }
 
 #[test]
@@ -18,7 +21,13 @@ fn longest_prefix_wins() {
 #[test]
 fn disabled_target_not_returned() {
     let table = RouteTable::new();
-    table.upsert("/host/", UpstreamTarget { upstream_url: "http://host".into(), enabled: false });
+    table.upsert(
+        "/host/",
+        UpstreamTarget {
+            upstream_url: "http://host".into(),
+            enabled: false,
+        },
+    );
     assert!(table.resolve("/host/remoteEntry.json").is_none());
 }
 
@@ -49,10 +58,13 @@ fn host_changed_updates_host_route() {
     table.upsert("/host/", target("http://old-host:80"));
 
     // Simulate host_changed handler updating the route
-    table.upsert("/host/", UpstreamTarget {
-        upstream_url: "http://new-host:80".into(),
-        enabled: true,
-    });
+    table.upsert(
+        "/host/",
+        UpstreamTarget {
+            upstream_url: "http://new-host:80".into(),
+            enabled: true,
+        },
+    );
 
     let (_, t) = table.resolve("/host/remoteEntry.json").unwrap();
     assert_eq!(t.upstream_url, "http://new-host:80");
