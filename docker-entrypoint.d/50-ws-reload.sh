@@ -3,7 +3,7 @@
 # nginx routes when remotes change. Forks immediately so nginx can start.
 set -eu
 
-REGISTRY_INTERNAL_URL="${REGISTRY_INTERNAL_URL:-http://registry:3000}"
+REGISTRY_INTERNAL_URL="${REGISTRY_INTERNAL_URL:-http://registry:8670}"
 NEXUS_TOKEN="${NEXUS_TOKEN:-}"
 REMOTES_CONF=/etc/nginx/nexus-remotes.conf
 POLL_INTERVAL="${NEXUS_RELOAD_INTERVAL:-15}"

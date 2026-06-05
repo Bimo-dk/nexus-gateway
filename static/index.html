@@ -1,0 +1,201 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>Nexus</title>
+  <style>
+    *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+    :root {
+      --primary: #6366f1;
+      --primary-dark: #4f46e5;
+      --text: #1e293b;
+      --text-muted: #64748b;
+      --error: #991b1b;
+      --error-bg: #fee2e2;
+      --surface: #f8fafc;
+      --border: #e2e8f0;
+    }
+    body { font-family: system-ui, -apple-system, sans-serif; color: var(--text); background: var(--surface); }
+
+    /* Loading spinner — CSS-only, no JS animation library */
+    .nexus-loading {
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      justify-content: center;
+      min-height: 100vh;
+      gap: 16px;
+      padding: 24px;
+      text-align: center;
+    }
+    .nexus-spinner {
+      width: 44px;
+      height: 44px;
+      border: 4px solid var(--border);
+      border-top-color: var(--primary);
+      border-radius: 50%;
+      animation: spin 0.8s linear infinite;
+    }
+    @keyframes spin { to { transform: rotate(360deg); } }
+    .nexus-loading h1 { font-size: 18px; font-weight: 600; color: var(--text); }
+    .nexus-loading p { font-size: 14px; color: var(--text-muted); }
+
+    /* Offline / error state */
+    .nexus-offline {
+      display: none;
+      flex-direction: column;
+      align-items: center;
+      justify-content: center;
+      min-height: 100vh;
+      gap: 16px;
+      padding: 24px;
+      text-align: center;
+    }
+    .nexus-offline.visible { display: flex; }
+    .nexus-offline h1 { font-size: 20px; font-weight: 700; color: var(--error); }
+    .nexus-offline p { font-size: 14px; color: var(--text-muted); max-width: 480px; }
+    .nexus-offline button {
+      background: var(--primary);
+      color: #fff;
+      border: none;
+      padding: 10px 24px;
+      border-radius: 6px;
+      font-size: 14px;
+      font-weight: 600;
+      cursor: pointer;
+    }
+    .nexus-offline button:hover { background: var(--primary-dark); }
+    .nexus-offline details { margin-top: 8px; max-width: 600px; width: 100%; text-align: left; }
+    .nexus-offline summary { cursor: pointer; font-size: 13px; color: var(--text-muted); }
+    .nexus-offline pre {
+      background: var(--error-bg);
+      padding: 12px;
+      border-radius: 6px;
+      font-size: 11px;
+      overflow: auto;
+      margin-top: 8px;
+      white-space: pre-wrap;
+      word-break: break-word;
+    }
+  </style>
+</head>
+<body>
+  <div id="nexus-loading" class="nexus-loading">
+    <div class="nexus-spinner"></div>
+    <h1>Loading Nexus</h1>
+    <p id="nexus-status">Initialising host shell&hellip;</p>
+  </div>
+
+  <div id="nexus-offline" class="nexus-offline">
+    <h1>Host shell unavailable</h1>
+    <p id="nexus-error-msg">Failed to load the host shell after 3 attempts.</p>
+    <button type="button" onclick="window.location.reload()">Try again</button>
+    <details>
+      <summary>Error details</summary>
+      <pre id="nexus-error-detail"></pre>
+    </details>
+  </div>
+
+  <!--
+    Mount points for all supported frameworks:
+      Angular mounts on #nexus-root  (bootstrapApplication / platformBrowserDynamic)
+      Vue     mounts on #app          (createApp().mount)
+      React   mounts on #root         (createRoot / ReactDOM.render)
+  -->
+  <div id="nexus-root"></div>
+  <div id="app"></div>
+  <div id="root"></div>
+
+  <script type="module">
+    const cfg = window.__NEXUS_GATEWAY_CONFIG__;
+    const MAX_ATTEMPTS = 3;
+    const RETRY_DELAY_MS = 2000;
+    const JITTER_MS = 500;
+
+    const statusEl = document.getElementById('nexus-status');
+    const loadingEl = document.getElementById('nexus-loading');
+    const offlineEl = document.getElementById('nexus-offline');
+    const errorMsgEl = document.getElementById('nexus-error-msg');
+    const errorDetailEl = document.getElementById('nexus-error-detail');
+
+    function setStatus(text) { if (statusEl) statusEl.textContent = text; }
+
+    function showOffline(message, detail) {
+      loadingEl.style.display = 'none';
+      offlineEl.classList.add('visible');
+      if (errorMsgEl) errorMsgEl.textContent = message;
+      if (errorDetailEl) errorDetailEl.textContent = detail || '';
+    }
+
+    function sleep(ms) {
+      return new Promise(r => setTimeout(r, ms + Math.random() * JITTER_MS));
+    }
+
+    async function detectFramework(remoteEntry) {
+      try {
+        const resp = await fetch(remoteEntry);
+        const text = await resp.text();
+        if (text.includes('Zone') || text.includes('@angular')) return 'angular';
+        if (text.includes('defineComponent') || text.includes('vue')) return 'vue';
+        if (text.includes('createElement') || text.includes('react')) return 'react';
+      } catch (_) {}
+      return 'angular';
+    }
+
+    async function loadHost() {
+      let framework = cfg.hostFramework;
+      const remoteEntry = cfg.hostRemoteEntry;
+      const exposedModule = cfg.hostExposedModule;
+
+      if (framework === 'auto') {
+        setStatus('Detecting host framework…');
+        framework = await detectFramework(remoteEntry);
+      }
+
+      let initFn, loadFn;
+      if (framework === 'angular') {
+        const mod = await import('@angular-architects/native-federation');
+        initFn = mod.initFederation ?? mod.init;
+        loadFn = mod.loadRemoteModule;
+      } else {
+        const mod = await import('@softarc/native-federation');
+        initFn = mod.initFederation ?? mod.init;
+        loadFn = mod.loadRemoteModule;
+      }
+
+      setStatus('Initialising federation…');
+      if (initFn) await initFn(remoteEntry);
+
+      setStatus('Loading host shell…');
+      await loadFn({ remoteEntry, exposedModule });
+    }
+
+    async function run() {
+      let lastError = null;
+      for (let attempt = 1; attempt <= MAX_ATTEMPTS; attempt++) {
+        try {
+          setStatus(`Loading host shell (attempt ${attempt} of ${MAX_ATTEMPTS})…`);
+          await loadHost();
+          loadingEl.style.display = 'none';
+          return;
+        } catch (err) {
+          lastError = err;
+          console.warn(`[nexus] host load attempt ${attempt}/${MAX_ATTEMPTS} failed:`, err);
+          if (attempt < MAX_ATTEMPTS) {
+            setStatus(`Retrying in ${RETRY_DELAY_MS / 1000}s…`);
+            await sleep(RETRY_DELAY_MS);
+          }
+        }
+      }
+      const msg = lastError instanceof Error ? lastError.message : String(lastError);
+      const detail = lastError instanceof Error
+        ? `${lastError.message}\n\n${lastError.stack || ''}`
+        : String(lastError);
+      showOffline(`Failed to load host shell after ${MAX_ATTEMPTS} attempts.`, detail);
+    }
+
+    run();
+  </script>
+</body>
+</html>
