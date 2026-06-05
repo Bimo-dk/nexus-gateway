@@ -1,5 +1,5 @@
-use std::sync::Arc;
 use dashmap::DashMap;
+use std::sync::Arc;
 
 #[derive(Debug, Clone)]
 pub struct UpstreamTarget {

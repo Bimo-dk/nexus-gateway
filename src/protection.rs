@@ -3,13 +3,13 @@ use std::sync::atomic::{AtomicU32, AtomicU64, Ordering};
 use std::sync::Arc;
 use std::time::{Duration, Instant};
 
+use axum::extract::Request;
 use axum::{
     body::Body,
     http::{HeaderValue, Method, StatusCode},
     middleware::Next,
     response::Response,
 };
-use axum::extract::Request;
 use dashmap::DashMap;
 use parking_lot::Mutex;
 use tracing::warn;
@@ -75,7 +75,10 @@ impl ProtectionState {
     pub fn check_ban(&self, ip: IpAddr) -> Result<(), (u64, String)> {
         if let Some(entry) = self.bans.get(&ip) {
             if entry.banned_until > Instant::now() {
-                let secs = entry.banned_until.saturating_duration_since(Instant::now()).as_secs();
+                let secs = entry
+                    .banned_until
+                    .saturating_duration_since(Instant::now())
+                    .as_secs();
                 return Err((secs, entry.reason.clone()));
             }
         }
@@ -91,13 +94,12 @@ impl ProtectionState {
         let rate = cfg.rate_limit_requests_per_second as f64;
         let burst = cfg.rate_limit_burst as f64;
 
-        let bucket = self
-            .rate_limits
-            .entry(ip)
-            .or_insert_with(|| Mutex::new(TokenBucket {
+        let bucket = self.rate_limits.entry(ip).or_insert_with(|| {
+            Mutex::new(TokenBucket {
                 tokens: burst,
                 last_refill: Instant::now(),
-            }));
+            })
+        });
 
         let mut b = bucket.lock();
         let elapsed = b.last_refill.elapsed().as_secs_f64();
@@ -116,10 +118,13 @@ impl ProtectionState {
     pub fn record_violation(&self, ip: IpAddr, reason: &str, cfg: &ProtectionConfig) {
         metrics::VIOLATIONS.with_label_values(&[reason]).inc();
 
-        let entry = self.violations.entry(ip).or_insert_with(|| ViolationRecord {
-            count: AtomicU32::new(0),
-            first_seen: Instant::now(),
-        });
+        let entry = self
+            .violations
+            .entry(ip)
+            .or_insert_with(|| ViolationRecord {
+                count: AtomicU32::new(0),
+                first_seen: Instant::now(),
+            });
         let count = entry.count.fetch_add(1, Ordering::Relaxed) + 1;
 
         if count >= cfg.ban_threshold_violations {
@@ -128,11 +133,14 @@ impl ProtectionState {
                 ip = %ip, reason, duration_secs = cfg.ban_duration_seconds,
                 "IP auto-banned after threshold violations"
             );
-            self.bans.insert(ip, BanEntry {
-                banned_until,
-                reason: reason.to_string(),
-                violation_count: count,
-            });
+            self.bans.insert(
+                ip,
+                BanEntry {
+                    banned_until,
+                    reason: reason.to_string(),
+                    violation_count: count,
+                },
+            );
             metrics::BANNED_IPS.inc();
         }
     }
@@ -219,20 +227,29 @@ pub async fn middleware(
     if let Err((retry_secs, reason)) = protection.check_ban(ip) {
         warn!(%ip, reason, "blocked banned IP");
         protection.requests_blocked.fetch_add(1, Ordering::Relaxed);
-        metrics::REQUESTS_BLOCKED.with_label_values(&["ip_banned", &metrics::ip_class(&ip)]).inc();
+        metrics::REQUESTS_BLOCKED
+            .with_label_values(&["ip_banned", &metrics::ip_class(&ip)])
+            .inc();
         return ban_response(retry_secs);
     }
 
     // Layer 5: header size (cheap, no body involved)
-    let header_bytes: usize = req.headers().iter()
+    let header_bytes: usize = req
+        .headers()
+        .iter()
         .map(|(k, v)| k.as_str().len() + v.len() + 4)
         .sum();
     if header_bytes as u64 > cfg.max_header_bytes {
         protection.record_violation(ip, "headers_too_large", &cfg);
         protection.requests_blocked.fetch_add(1, Ordering::Relaxed);
-        metrics::REQUESTS_BLOCKED.with_label_values(&["headers_too_large", &metrics::ip_class(&ip)]).inc();
-        return err_response(StatusCode::REQUEST_HEADER_FIELDS_TOO_LARGE, "headers_too_large",
-            "request headers exceed maximum allowed size");
+        metrics::REQUESTS_BLOCKED
+            .with_label_values(&["headers_too_large", &metrics::ip_class(&ip)])
+            .inc();
+        return err_response(
+            StatusCode::REQUEST_HEADER_FIELDS_TOO_LARGE,
+            "headers_too_large",
+            "request headers exceed maximum allowed size",
+        );
     }
 
     // Layer 4: Content-Length pre-check (before acquiring connection slot)
@@ -240,7 +257,9 @@ pub async fn middleware(
         if cl_val > cfg.max_body_bytes {
             protection.record_violation(ip, "payload_too_large", &cfg);
             protection.requests_blocked.fetch_add(1, Ordering::Relaxed);
-            metrics::REQUESTS_BLOCKED.with_label_values(&["payload_too_large", &metrics::ip_class(&ip)]).inc();
+            metrics::REQUESTS_BLOCKED
+                .with_label_values(&["payload_too_large", &metrics::ip_class(&ip)])
+                .inc();
             return payload_too_large_response(cfg.max_body_bytes);
         }
     }
@@ -256,7 +275,9 @@ pub async fn middleware(
         }
         protection.record_violation(ip, "too_many_connections", &cfg);
         protection.requests_blocked.fetch_add(1, Ordering::Relaxed);
-        metrics::REQUESTS_BLOCKED.with_label_values(&["too_many_connections", &metrics::ip_class(&ip)]).inc();
+        metrics::REQUESTS_BLOCKED
+            .with_label_values(&["too_many_connections", &metrics::ip_class(&ip)])
+            .inc();
         return too_many_connections_response(cfg.max_connections_per_ip);
     }
 
@@ -266,8 +287,14 @@ pub async fn middleware(
             entry.active_http.fetch_sub(1, Ordering::Relaxed);
         }
         protection.requests_blocked.fetch_add(1, Ordering::Relaxed);
-        metrics::REQUESTS_BLOCKED.with_label_values(&["rate_limited", &metrics::ip_class(&ip)]).inc();
-        return rate_limited_response(retry_ms, cfg.rate_limit_requests_per_second, cfg.rate_limit_burst);
+        metrics::REQUESTS_BLOCKED
+            .with_label_values(&["rate_limited", &metrics::ip_class(&ip)])
+            .inc();
+        return rate_limited_response(
+            retry_ms,
+            cfg.rate_limit_requests_per_second,
+            cfg.rate_limit_burst,
+        );
     }
 
     // Layers 6 & 7: body read timeout + total request timeout
@@ -281,7 +308,9 @@ pub async fn middleware(
         // Body read with timeout (catches slowloris-style slow body sending)
         let collected = match tokio::time::timeout(body_timeout, async {
             http_body_util::BodyExt::collect(body).await
-        }).await {
+        })
+        .await
+        {
             Ok(Ok(b)) => b.to_bytes(),
             _ => return request_timeout_response(),
         };
@@ -295,7 +324,8 @@ pub async fn middleware(
 
         let req = Request::from_parts(parts, Body::from(collected));
         next.run(req).await
-    }).await;
+    })
+    .await;
 
     // Always release http connection slot
     if let Some(entry) = protection.connections.get(&ip) {
@@ -309,7 +339,9 @@ pub async fn middleware(
         Err(_) => {
             protection.record_violation(ip, "request_timeout", &cfg);
             protection.requests_blocked.fetch_add(1, Ordering::Relaxed);
-            metrics::REQUESTS_BLOCKED.with_label_values(&["request_timeout", &metrics::ip_class(&ip)]).inc();
+            metrics::REQUESTS_BLOCKED
+                .with_label_values(&["request_timeout", &metrics::ip_class(&ip)])
+                .inc();
             gateway_timeout_response()
         }
     };

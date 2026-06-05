@@ -1,6 +1,6 @@
-use wiremock::{MockServer, Mock, ResponseTemplate};
-use wiremock::matchers::{method, path, header};
 use serde_json::json;
+use wiremock::matchers::{header, method, path};
+use wiremock::{Mock, MockServer, ResponseTemplate};
 
 use crate::startup::{bootstrap, is_visible, Env};
 use crate::state::RegistryRemote;
@@ -57,7 +57,9 @@ async fn startup_fetches_gate_and_builds_route_table() {
     Mock::given(method("GET"))
         .and(path("/api/gates/by-domain/gate-dk"))
         .and(header("X-Nexus-Token", "test-token"))
-        .respond_with(ResponseTemplate::new(200).set_body_json(make_gate_response("gate-1", "host-1")))
+        .respond_with(
+            ResponseTemplate::new(200).set_body_json(make_gate_response("gate-1", "host-1")),
+        )
         .mount(&server)
         .await;
 
@@ -92,14 +94,26 @@ async fn startup_fetches_gate_and_builds_route_table() {
     assert_eq!(state.host_url, "http://shop:80");
 
     // global and host-matching routes should be present
-    assert!(routes.resolve("/remotes/checkout/foo").is_some(), "checkout route missing");
-    assert!(routes.resolve("/remotes/private/foo").is_some(), "private route missing");
+    assert!(
+        routes.resolve("/remotes/checkout/foo").is_some(),
+        "checkout route missing"
+    );
+    assert!(
+        routes.resolve("/remotes/private/foo").is_some(),
+        "private route missing"
+    );
 
     // other-host-id remote must not appear
-    assert!(routes.resolve("/remotes/other/foo").is_none(), "other-host remote should be excluded");
+    assert!(
+        routes.resolve("/remotes/other/foo").is_none(),
+        "other-host remote should be excluded"
+    );
 
     // host route always present
-    assert!(routes.resolve("/host/remoteEntry.json").is_some(), "host route missing");
+    assert!(
+        routes.resolve("/host/remoteEntry.json").is_some(),
+        "host route missing"
+    );
 }
 
 #[test]

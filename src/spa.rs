@@ -1,5 +1,5 @@
-use axum::response::Html;
 use crate::state::SharedState;
+use axum::response::Html;
 
 static INDEX_HTML: &str = include_str!("../static/index.html");
 static NOT_READY_HTML: &str = include_str!("../static/not-ready.html");
@@ -20,7 +20,11 @@ pub async fn handler(gateway: SharedState) -> Html<String> {
     let host_ready = !s.host_remote_entry.is_empty();
     drop(s);
 
-    let template = if host_ready { INDEX_HTML } else { NOT_READY_HTML };
+    let template = if host_ready {
+        INDEX_HTML
+    } else {
+        NOT_READY_HTML
+    };
     let config_str = config.to_string().replace("</", "<\\/");
     let script = format!(
         "<script>window.__NEXUS_GATEWAY_CONFIG__ = {};</script>",

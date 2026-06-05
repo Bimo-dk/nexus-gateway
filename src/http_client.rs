@@ -11,11 +11,7 @@ pub fn build() -> HyperClient {
     Client::builder(TokioExecutor::new()).build(HttpConnector::new())
 }
 
-pub async fn get_json(
-    client: &HyperClient,
-    url: &str,
-    token: &str,
-) -> Result<serde_json::Value> {
+pub async fn get_json(client: &HyperClient, url: &str, token: &str) -> Result<serde_json::Value> {
     let uri: Uri = url.parse().with_context(|| format!("invalid URL: {url}"))?;
 
     let req = Request::builder()

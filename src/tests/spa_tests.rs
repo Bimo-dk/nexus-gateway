@@ -1,4 +1,4 @@
-use crate::state::{GatewayConfig, GatewayState, HostFramework, new_shared};
+use crate::state::{new_shared, GatewayConfig, GatewayState, HostFramework};
 
 fn make_state(framework: HostFramework) -> crate::state::SharedState {
     let s = GatewayState {
@@ -24,13 +24,25 @@ async fn spa_injects_config_into_html() {
     let html = crate::spa::handler(state).await;
     let body = html.0;
 
-    assert!(body.contains("window.__NEXUS_GATEWAY_CONFIG__"), "config injection missing");
-    assert!(body.contains("\"gateName\":\"gate-dk\""), "gateName missing");
+    assert!(
+        body.contains("window.__NEXUS_GATEWAY_CONFIG__"),
+        "config injection missing"
+    );
+    assert!(
+        body.contains("\"gateName\":\"gate-dk\""),
+        "gateName missing"
+    );
     assert!(body.contains("\"gateId\":\"g1\""), "gateId missing");
     assert!(body.contains("\"hostName\":\"shop\""), "hostName missing");
     assert!(body.contains("\"hostId\":\"h1\""), "hostId missing");
-    assert!(body.contains("\"hostFramework\":\"angular\""), "hostFramework missing");
-    assert!(body.contains("\"registryUrl\":\"/api\""), "registryUrl must be /api");
+    assert!(
+        body.contains("\"hostFramework\":\"angular\""),
+        "hostFramework missing"
+    );
+    assert!(
+        body.contains("\"registryUrl\":\"/api\""),
+        "registryUrl must be /api"
+    );
     assert!(body.contains("\"wsUrl\":\"/ws\""), "wsUrl must be /ws");
 }
 
@@ -40,7 +52,10 @@ async fn spa_html_contains_all_mount_points() {
     let html = crate::spa::handler(state).await;
     let body = html.0;
 
-    assert!(body.contains("id=\"nexus-root\""), "#nexus-root for Angular");
+    assert!(
+        body.contains("id=\"nexus-root\""),
+        "#nexus-root for Angular"
+    );
     assert!(body.contains("id=\"app\""), "#app for Vue");
     assert!(body.contains("id=\"root\""), "#root for React");
 }

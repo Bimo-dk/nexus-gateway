@@ -1,5 +1,5 @@
-use axum::http::{HeaderName, HeaderValue, Response};
 use axum::body::Body;
+use axum::http::{HeaderName, HeaderValue, Response};
 
 // Headers that custom_headers from GatewayConfig must not override
 const LOCKED: &[&str] = &[
@@ -16,7 +16,11 @@ pub fn apply_security_headers(mut response: Response<Body>) -> Response<Body> {
     set(headers, "x-frame-options", "SAMEORIGIN");
     set(headers, "x-content-type-options", "nosniff");
     set(headers, "x-xss-protection", "1; mode=block");
-    set(headers, "referrer-policy", "strict-origin-when-cross-origin");
+    set(
+        headers,
+        "referrer-policy",
+        "strict-origin-when-cross-origin",
+    );
     set(
         headers,
         "permissions-policy",
@@ -63,14 +67,9 @@ fn is_immutable_asset(path: &str) -> bool {
     lower.ends_with(".js") || lower.ends_with(".css") || lower.ends_with(".woff2")
 }
 
-fn set(
-    headers: &mut axum::http::HeaderMap,
-    name: &'static str,
-    value: &'static str,
-) {
+fn set(headers: &mut axum::http::HeaderMap, name: &'static str, value: &'static str) {
     headers.insert(
         HeaderName::from_static(name),
         HeaderValue::from_static(value),
     );
 }
-
