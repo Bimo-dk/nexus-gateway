@@ -1,6 +1,10 @@
 FROM rust:1-slim AS builder
 WORKDIR /app
 
+RUN apt-get update && apt-get install -y --no-install-recommends \
+    pkg-config libssl-dev \
+    && rm -rf /var/lib/apt/lists/*
+
 # Cache dependency compilation separately from source
 COPY Cargo.toml Cargo.lock ./
 RUN mkdir src && echo 'fn main(){}' > src/main.rs && cargo build --release && rm -rf src
