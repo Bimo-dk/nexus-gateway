@@ -28,6 +28,7 @@ fn make_remotes(host_id: &str) -> serde_json::Value {
                 "name": "checkout",
                 "url": "http://checkout:80",
                 "routePath": "checkout",
+                "upstreamUrl": "http://checkout:80",
                 "visibility": "global",
                 "enabled": true
             },
@@ -35,6 +36,7 @@ fn make_remotes(host_id: &str) -> serde_json::Value {
                 "name": "privateRemote",
                 "url": "http://private:80",
                 "routePath": "private",
+                "upstreamUrl": "http://private:80",
                 "visibility": format!("host:{}", host_id),
                 "enabled": true
             },
@@ -42,6 +44,7 @@ fn make_remotes(host_id: &str) -> serde_json::Value {
                 "name": "otherHostRemote",
                 "url": "http://other:80",
                 "routePath": "other",
+                "upstreamUrl": "http://other:80",
                 "visibility": "host:other-host-id",
                 "enabled": true
             }
@@ -103,16 +106,25 @@ async fn startup_fetches_gate_and_builds_route_table() {
         "private route missing"
     );
 
-    // other-host-id remote must not appear
-    assert!(
-        routes.resolve("/remotes/other/foo").is_none(),
-        "other-host remote should be excluded"
-    );
+    // other-host-id remote must not get its own prefix entry. With the catch-all
+    // host route the path now falls through to the host (which 404s on it) — but
+    // crucially, it does NOT proxy to the other-host's remote URL.
+    let (matched_prefix, target) = routes.resolve("/remotes/other/foo").expect("catch-all");
+    assert_eq!(matched_prefix, "/", "invisible remote should fall through to host catch-all, not its own prefix");
+    assert_eq!(target.upstream_url, "http://shop:80", "fall-through must go to host, not the other-host remote");
 
-    // host route always present
+    // host catch-all serves both legacy /host/* paths and bare / paths
     assert!(
         routes.resolve("/host/remoteEntry.json").is_some(),
-        "host route missing"
+        "host route missing for legacy /host/* path"
+    );
+    assert!(
+        routes.resolve("/").is_some(),
+        "host catch-all missing for /"
+    );
+    assert!(
+        routes.resolve("/remoteEntry.json").is_some(),
+        "host catch-all missing for /remoteEntry.json"
     );
 }
 
@@ -122,6 +134,7 @@ fn visibility_filtering() {
         name: "a".into(),
         url: "http://a".into(),
         route_path: "a".into(),
+        upstream_url: "http://a:80".into(),
         visibility: "global".into(),
         enabled: true,
     };

@@ -296,8 +296,31 @@ pub async fn bootstrap(env: &Env) -> Result<(GatewayState, RouteTable)> {
 
 pub fn build_route_table(state: &GatewayState, remotes: &[RegistryRemote]) -> RouteTable {
     let table = RouteTable::new();
+    // `/api/` proxies HTTP API calls to the registry — longest-prefix
+    // matching guarantees this wins over the `/` host catch-all below
+    // for every `/api/...` path. `/api/ws` is handled separately as an
+    // axum route because it needs a WebSocket upgrade.
+    //
+    // Upstream URL includes `/api` because proxy::handler strips the
+    // matched prefix from the request path; without it, `/api/remotes`
+    // would become `/remotes` against the registry, and the registry
+    // serves its API under `/api/*`.
+    let registry_base = state.registry_url.trim_end_matches('/');
     table.upsert(
-        "/host/",
+        "/api/",
+        UpstreamTarget {
+            upstream_url: format!("{}/api", registry_base),
+            enabled: true,
+        },
+    );
+    // Catch-all for the host shell. Longest-prefix matching lets /api/*
+    // and /remotes/<name>/* still win where they apply. Everything else
+    // — `/`, `/remoteEntry.json`, `/main-*.js`, `/assets/*` — proxies
+    // to the host so the host's native-federation bootstrap chain runs
+    // in the browser. The static SPA shim was unreachable at `/` and
+    // could not import bare specifiers without an import map (see B-14).
+    table.upsert(
+        "/",
         UpstreamTarget {
             upstream_url: state.host_url.clone(),
             enabled: true,
@@ -307,11 +330,19 @@ pub fn build_route_table(state: &GatewayState, remotes: &[RegistryRemote]) -> Ro
         if !is_visible(remote, &state.host_id) {
             continue;
         }
+        // Upstream MUST be the internal upstreamUrl (http://remote-x:80),
+        // not the browser-facing url (which is a path like
+        // /remotes/x/remoteEntry.json). Older registry payloads may omit
+        // upstreamUrl — in that case skip the remote so we don't proxy
+        // to a relative path. Observed as B-18.
+        if remote.upstream_url.is_empty() {
+            continue;
+        }
         let prefix = format!("/remotes/{}/", remote.route_path.trim_matches('/'));
         table.upsert(
             prefix,
             UpstreamTarget {
-                upstream_url: remote.url.clone(),
+                upstream_url: remote.upstream_url.clone(),
                 enabled: remote.enabled,
             },
         );

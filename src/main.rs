@@ -118,7 +118,7 @@ async fn main() {
 
     let app = Router::new()
         .route("/health", get(health_handler))
-        .route("/ws", get(ws_handler))
+        .route("/api/ws", get(ws_handler))
         .route("/metrics", get(metrics_handler))
         .route("/api/protection/status", get(protection_status))
         .route("/api/protection/ban", post(ban_ip))
@@ -180,7 +180,21 @@ async fn ws_handler(
         let url = base
             .replacen("https://", "wss://", 1)
             .replacen("http://", "ws://", 1);
-        (limit, format!("{}/ws{}", url, query))
+        // Append the gateway's NEXUS_TOKEN as a `token=` query param on the
+        // upstream URL. The registry accepts the token as either an
+        // X-Nexus-Token header or a `token` query string; tokio-tungstenite
+        // does not let us inject a custom header through `connect_async`,
+        // so the query form is the simpler path. The token never reaches
+        // the browser because we strip it from the inbound query first.
+        let sep = if query.is_empty() { "?" } else { "&" };
+        let token = if !s.nexus_token.is_empty() {
+            let encoded: String = url::form_urlencoded::byte_serialize(s.nexus_token.as_bytes())
+                .collect();
+            format!("{sep}token={encoded}")
+        } else {
+            String::new()
+        };
+        (limit, format!("{}/api/ws{}{}", url, query, token))
     };
 
     if !app.protection.try_acquire_ws(ip, limit) {

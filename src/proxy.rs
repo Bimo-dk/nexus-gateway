@@ -79,6 +79,19 @@ pub async fn handler(
         }
     }
 
+    // Inject NEXUS_TOKEN on the server-to-server hop when proxying to the
+    // registry. The token never reaches the browser (trust-boundary model
+    // in CLAUDE.md); the gateway holds it and adds it transparently.
+    {
+        let s = app.gateway.read().await;
+        let registry_base = s.registry_url.trim_end_matches('/');
+        if !s.nexus_token.is_empty() && upstream_url.starts_with(registry_base) {
+            if let Ok(v) = HeaderValue::from_str(&s.nexus_token) {
+                headers.insert(HeaderName::from_static("x-nexus-token"), v);
+            }
+        }
+    }
+
     let upstream_resp = match app.proxy_client.request(upstream_req).await {
         Ok(r) => r,
         Err(e) => {
