@@ -41,14 +41,3 @@ jobs:
           labels: ${{ steps.meta.outputs.labels }}
           cache-from: type=gha
           cache-to: type=gha,mode=max
-
-# Image is built WITHOUT HOST_REMOTE_ENTRY — it's runtime config now.
-# Consumers pull + run with their own HOST_REMOTE_ENTRY:
-#
-#   docker pull ghcr.io/bimo-dk/nexus-gateway:latest
-#   docker run -p 8668:80 \
-#     -e HOST_REMOTE_ENTRY=https://prod.nexus.dk/host/remoteEntry.json \
-#     ghcr.io/bimo-dk/nexus-gateway:latest
-#
-# Default if HOST_REMOTE_ENTRY is unset: /host/remoteEntry.json (expects
-# host behind the same reverse proxy).
