@@ -4,6 +4,7 @@ Public ingress for a Nexus deployment. Rust binary (axum + hyper + tokio) — fe
 
 - Image: [`ghcr.io/bimo-dk/nexus-gateway`](https://github.com/Bimo-dk/nexus-gateway/pkgs/container/nexus-gateway)
 - Listens on: `:8668`
+- Trust boundary: **public entry.** The gateway is the only service end users talk to. The registry, hosts and remotes it proxies all live on the internal network. See [security — Network trust boundary](https://nexus.bimo.dk/reference/security#network-trust-boundary).
 - Requires: a reachable [nexus-registry](https://github.com/Bimo-dk/nexus-registry)
 - Docs: [Tenant-facing overview](https://nexus.bimo.dk/infrastructure/infra-gateway) · [Internals — architecture](https://nexus.bimo.dk/internals/nexus-gateway/architecture) · [code map](https://nexus.bimo.dk/internals/nexus-gateway/code-map)
 
