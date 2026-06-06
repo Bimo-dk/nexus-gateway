@@ -30,16 +30,23 @@ pub fn read_env() -> Result<Env> {
     let gate_name =
         std::env::var("NEXUS_GATE_NAME").context("NEXUS_GATE_NAME is required but not set")?;
 
+    // Empty strings (e.g. from `ENV NEXUS_HOST_NAME=` defaults in the Dockerfile)
+    // must collapse to None — otherwise `ensure_gate` walks into the host
+    // auto-create branch with an empty name and the registry rejects it.
+    fn opt(key: &str) -> Option<String> {
+        std::env::var(key).ok().filter(|v| !v.is_empty())
+    }
+
     Ok(Env {
         nexus_token,
         registry_url,
         gate_name,
-        host_name: std::env::var("NEXUS_HOST_NAME").ok(),
-        host_url: std::env::var("NEXUS_HOST_URL").ok(),
-        host_framework: std::env::var("NEXUS_HOST_FRAMEWORK").ok(),
-        host_remote_entry: std::env::var("NEXUS_HOST_REMOTE_ENTRY").ok(),
-        host_exposed_module: std::env::var("NEXUS_HOST_EXPOSED_MODULE").ok(),
-        gate_label: std::env::var("NEXUS_GATE_LABEL").ok(),
+        host_name: opt("NEXUS_HOST_NAME"),
+        host_url: opt("NEXUS_HOST_URL"),
+        host_framework: opt("NEXUS_HOST_FRAMEWORK"),
+        host_remote_entry: opt("NEXUS_HOST_REMOTE_ENTRY"),
+        host_exposed_module: opt("NEXUS_HOST_EXPOSED_MODULE"),
+        gate_label: opt("NEXUS_GATE_LABEL"),
     })
 }
 
@@ -135,12 +142,10 @@ async fn ensure_gate(client: &HyperClient, env: &Env) -> Result<()> {
         None
     };
 
-    let gate_label = env.gate_label.clone().unwrap_or_else(|| {
-        env.host_name
-            .as_deref()
-            .map(|n| format!("{}Gate", n))
-            .unwrap_or_else(|| env.gate_name.replace([':', '.'], "_"))
-    });
+    let gate_label = env
+        .gate_label
+        .clone()
+        .unwrap_or_else(|| derive_gate_label(env.host_name.as_deref(), &env.gate_name));
 
     info!(domain = %env.gate_name, gate_label, "creating gate in registry");
 
@@ -168,6 +173,26 @@ async fn ensure_gate(client: &HyperClient, env: &Env) -> Result<()> {
     }
 
     Ok(())
+}
+
+/// Produce a gate label that satisfies the registry's `is_valid_entity_name`
+/// validator (`[a-zA-Z][a-zA-Z0-9]*`). The previous implementation replaced
+/// dots and colons with underscores, which the validator also rejects, and
+/// the gateway crash-looped on `bootstrap error: failed to create gate in
+/// registry`.
+pub fn derive_gate_label(host_name: Option<&str>, gate_name: &str) -> String {
+    if let Some(n) = host_name {
+        return format!("{n}Gate");
+    }
+    let stripped: String = gate_name
+        .chars()
+        .filter(|c| c.is_ascii_alphanumeric())
+        .collect();
+    if stripped.chars().next().is_some_and(|c| c.is_ascii_alphabetic()) {
+        format!("{stripped}Gate")
+    } else {
+        format!("g{stripped}Gate")
+    }
 }
 
 pub async fn bootstrap(env: &Env) -> Result<(GatewayState, RouteTable)> {

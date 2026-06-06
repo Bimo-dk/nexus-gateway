@@ -2,7 +2,7 @@ use serde_json::json;
 use wiremock::matchers::{header, method, path};
 use wiremock::{Mock, MockServer, ResponseTemplate};
 
-use crate::startup::{bootstrap, is_visible, Env};
+use crate::startup::{bootstrap, derive_gate_label, is_visible, Env};
 use crate::state::RegistryRemote;
 
 fn make_gate_response(gate_id: &str, host_id: &str) -> serde_json::Value {
@@ -137,4 +137,40 @@ fn visibility_filtering() {
     assert!(is_visible(&global, "my-host"));
     assert!(is_visible(&host_match, "my-host"));
     assert!(!is_visible(&host_other, "my-host"));
+}
+
+#[test]
+fn derive_gate_label_uses_host_name_when_available() {
+    assert_eq!(derive_gate_label(Some("shopHost"), "shop.example.com"), "shopHostGate");
+}
+
+#[test]
+fn derive_gate_label_strips_dots_and_dashes_when_no_host() {
+    assert_eq!(derive_gate_label(None, "angular.local"), "angularlocalGate");
+    assert_eq!(derive_gate_label(None, "vue.local"), "vuelocalGate");
+    assert_eq!(derive_gate_label(None, "react.local"), "reactlocalGate");
+    assert_eq!(derive_gate_label(None, "shop-eu.example.com"), "shopeuexamplecomGate");
+    assert_eq!(derive_gate_label(None, "host:8080"), "host8080Gate");
+}
+
+#[test]
+fn derive_gate_label_handles_label_starting_with_digit() {
+    // is_valid_entity_name forbids a leading digit; prefix with 'g'.
+    assert_eq!(derive_gate_label(None, "8080.local"), "g8080localGate");
+}
+
+#[test]
+fn derive_gate_label_never_contains_invalid_chars() {
+    let cases = [
+        "x_y", "x-y", "x.y", "x:y", "x y", "x/y", "x+y", "1x", "1.2.3.4",
+    ];
+    for c in cases {
+        let label = derive_gate_label(None, c);
+        assert!(
+            label.chars().all(|ch| ch.is_ascii_alphanumeric()),
+            "label \"{label}\" derived from \"{c}\" contains non-alphanumeric chars"
+        );
+        let first = label.chars().next().expect("non-empty");
+        assert!(first.is_ascii_alphabetic(), "label \"{label}\" must start with a letter");
+    }
 }
