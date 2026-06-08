@@ -2,8 +2,14 @@ FROM rust:1-slim AS builder
 WORKDIR /app
 
 RUN apt-get update && apt-get install -y --no-install-recommends \
-    pkg-config libssl-dev \
+    pkg-config libssl-dev ca-certificates \
     && rm -rf /var/lib/apt/lists/*
+
+# Force HTTP/1.1 against crates.io. Cargo's HTTP/2 multiplexer occasionally
+# fails inside Docker BuildKit with `Error in the HTTP2 framing layer`,
+# blocking the dependency fetch on a cold cache.
+ENV CARGO_HTTP_MULTIPLEXING=false
+ENV CARGO_NET_RETRY=5
 
 # Cache dependency compilation separately from source
 COPY Cargo.toml Cargo.lock ./

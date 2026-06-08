@@ -145,8 +145,15 @@ pub struct RegistryHost {
 pub struct RegistryRemote {
     #[allow(dead_code)]
     pub name: String,
+    /// Browser-facing URL the host runtime fetches the manifest from.
+    /// Stored for diagnostics; NOT used as the upstream target.
     pub url: String,
     pub route_path: String,
+    /// Internal upstream the gateway proxies to (e.g. http://remote-vue:80).
+    /// Defaults to empty when older registry payloads omit it; the gateway
+    /// then refuses to add the remote to the route table.
+    #[serde(default)]
+    pub upstream_url: String,
     pub visibility: String,
     #[serde(default)]
     pub enabled: bool,
