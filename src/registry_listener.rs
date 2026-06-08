@@ -158,15 +158,19 @@ async fn handle_message(
                 if !is_visible(remote, &host_id) {
                     continue;
                 }
+                if remote.upstream_url.is_empty() {
+                    warn!(name = %remote.name, "skipping remote with empty upstreamUrl - registry payload missing field");
+                    continue;
+                }
                 let prefix = format!("/remotes/{}/", remote.route_path.trim_matches('/'));
                 routes.upsert(
                     prefix.clone(),
                     UpstreamTarget {
-                        upstream_url: remote.url.clone(),
+                        upstream_url: remote.upstream_url.clone(),
                         enabled: remote.enabled,
                     },
                 );
-                info!(prefix, url = %remote.url, "remote route upserted");
+                info!(prefix, url = %remote.url, upstream = %remote.upstream_url, "remote route upserted");
             }
         }
 
